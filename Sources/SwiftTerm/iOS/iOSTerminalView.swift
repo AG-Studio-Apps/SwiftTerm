@@ -1286,6 +1286,33 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         return selection?.active ?? false
     }
 
+    /// Programmatically sets the selection range to the given buffer
+    /// positions. Useful for callers that want to highlight a region
+    /// without going through a drag gesture — e.g. a search overlay
+    /// that wants the match cells to light up with the same visual
+    /// treatment as a user-driven selection. Coordinates are
+    /// scroll-invariant buffer positions (the same shape returned by
+    /// `getScrollInvariantLine` use). The view's internal selection
+    /// rendering picks up the change automatically.
+    ///
+    /// Added by the meshTerm fork (`v1.13.0-meshterm.2`). An upstream
+    /// PR has been filed mirroring this accessor; once merged we will
+    /// switch back to upstream and drop the fork.
+    public func setSelectionRange(start: Position, end: Position) {
+        selection?.setSelection(start: start, end: end)
+    }
+
+    /// Clears any active selection. Companion to `setSelectionRange`
+    /// for callers that don't have a UIResponder hook into the menu
+    /// system (where `selectNone` would otherwise come from).
+    ///
+    /// Added by the meshTerm fork (`v1.13.0-meshterm.2`). An upstream
+    /// PR has been filed mirroring this accessor; once merged we will
+    /// switch back to upstream and drop the fork.
+    public func clearSelection() {
+        selection?.selectNone()
+    }
+
     var lineAscent: CGFloat = 0
     var lineDescent: CGFloat = 0
     var lineLeading: CGFloat = 0
