@@ -100,7 +100,15 @@ extension TerminalView {
         resetCaches()
         self.cellDimension = computeFontDimensions ()
         let newCols = Int(frame.width / cellDimension.width)
+        #if os(iOS)
+        // When the host owns the row count, a font change reflows cols +
+        // cell geometry but keeps rows fixed: frame.height may not
+        // reflect the host's intended row count (it manages viewport
+        // size itself), so the host re-applies rows. See externallyManagedRows.
+        let newRows = externallyManagedRows ? terminal.rows : Int(frame.height / cellDimension.height)
+        #else
         let newRows = Int(frame.height / cellDimension.height)
+        #endif
         resize(cols: newCols, rows: newRows)
         updateCaretView()
         
@@ -172,9 +180,18 @@ extension TerminalView {
     /// Returns true if this changed the number of columns/rows, false otherwise
     @discardableResult
     func processSizeChange (newSize: CGSize) -> Bool {
-        let newRows = Int (newSize.height / cellDimension.height)
         let newCols = Int (getEffectiveWidth (size: newSize) / cellDimension.width)
-        
+        #if os(iOS)
+        // When the host owns the row count, a bounds change recomputes
+        // cols from width but keeps rows fixed: the embedder re-applies
+        // rows explicitly and manages its own viewport size (e.g. via
+        // content insets) rather than resizing the grid. See
+        // externallyManagedRows.
+        let newRows = externallyManagedRows ? terminal.rows : Int (newSize.height / cellDimension.height)
+        #else
+        let newRows = Int (newSize.height / cellDimension.height)
+        #endif
+
         if newCols != terminal.cols || newRows != terminal.rows {
             selection.active = false
             terminal.resize (cols: newCols, rows: newRows)

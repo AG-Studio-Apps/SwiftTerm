@@ -142,6 +142,22 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
      */
     public var allowMouseReporting: Bool = true
 
+    /**
+     * When true, the host owns the terminal's row count: automatic
+     * pixel-driven row recomputation is suppressed. `processSizeChange`
+     * and `resetFont` keep `terminal.rows` fixed and only recompute
+     * `cols` from the width — the embedder re-applies rows explicitly
+     * via `terminal.resize`. Columns still follow width so reflow/wrap
+     * stay correct on rotation.
+     *
+     * Intended for embedders that manage their own viewport size — for
+     * example, avoiding an on-screen keyboard via content insets — and
+     * need the grid decoupled from the view's bounds so a transient
+     * bounds change doesn't resize the terminal. Default `false`
+     * preserves the standard auto-sizing behaviour for all callers.
+     */
+    public var externallyManagedRows: Bool = false
+
     /// Controls how link tracking resolves hovered links:
     /// `.explicit` = OSC 8 only, `.implicit` = explicit + implicit fallback, `.none` = off.
     public var linkReporting: LinkReporting = .implicit
