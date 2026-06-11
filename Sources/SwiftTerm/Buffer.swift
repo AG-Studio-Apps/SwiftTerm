@@ -40,7 +40,7 @@ public final class Buffer {
     /// This is the index into the `lines` array that corresponds to the top row of displayed
     /// content in the terminal when the scroll is zero.   So the terminal contents that the application
     /// has access to are `lines [yBase..(yBase+rows)]`
-    var yBase: Int {
+    public internal(set) var yBase: Int {
         get { _yBase }
         set {
             if newValue > _lines.count {
@@ -212,6 +212,11 @@ public final class Buffer {
     var lines : CircularBufferLineList {
         get { return _lines }
     }
+
+    /// Number of lines currently held (scrollback + on-screen). Public so a
+    /// headless renderer can size its scroll range and map absolute line
+    /// indices to screen positions. (meshterm.7)
+    public var linesCount: Int { _lines.count }
 
     /// Returns true if any lines in this buffer have images attached
     public var hasAnyImages: Bool {
