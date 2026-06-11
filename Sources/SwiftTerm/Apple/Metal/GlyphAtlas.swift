@@ -2,26 +2,28 @@
 import CoreGraphics
 import Metal
 
-struct AtlasRegion {
-    let x: Int
-    let y: Int
-    let width: Int
-    let height: Int
+/// A reserved rectangle inside a ``GlyphAtlas`` texture. (meshterm.7: public for headless embedders)
+public struct AtlasRegion {
+    public let x: Int
+    public let y: Int
+    public let width: Int
+    public let height: Int
 }
 
-struct GlyphBitmap {
-    let width: Int
-    let height: Int
-    let bearing: CGPoint
-    let pixels: [UInt8]
-    let isColor: Bool
+/// A rasterized glyph ready for atlas upload. (meshterm.7: public for headless embedders)
+public struct GlyphBitmap {
+    public let width: Int
+    public let height: Int
+    public let bearing: CGPoint
+    public let pixels: [UInt8]
+    public let isColor: Bool
 }
 
-enum GlyphAtlasFormat {
+public enum GlyphAtlasFormat {
     case grayscale
     case bgra
 
-    var bytesPerPixel: Int {
+    public var bytesPerPixel: Int {
         switch self {
         case .grayscale:
             return 1
@@ -30,7 +32,7 @@ enum GlyphAtlasFormat {
         }
     }
 
-    var pixelFormat: MTLPixelFormat {
+    public var pixelFormat: MTLPixelFormat {
         switch self {
         case .grayscale:
             return .r8Unorm
@@ -40,20 +42,21 @@ enum GlyphAtlasFormat {
     }
 }
 
-final class GlyphAtlas {
+/// Grow-then-reset shelf-packed glyph texture atlas. (meshterm.7: public for headless embedders)
+public final class GlyphAtlas {
     private let device: MTLDevice
     private let format: GlyphAtlasFormat
     private let bytesPerPixel: Int
     private let maxSize: Int
-    private(set) var size: Int
-    private(set) var texture: MTLTexture
+    public private(set) var size: Int
+    public private(set) var texture: MTLTexture
     private var data: [UInt8]
     private var nextX = 0
     private var nextY = 0
     private var rowHeight = 0
-    private(set) var didReset = false
+    public private(set) var didReset = false
 
-    init?(device: MTLDevice, size: Int = 1024, maxSize: Int = 2048, format: GlyphAtlasFormat = .bgra) {
+    public init?(device: MTLDevice, size: Int = 1024, maxSize: Int = 2048, format: GlyphAtlasFormat = .bgra) {
         self.device = device
         self.format = format
         self.bytesPerPixel = format.bytesPerPixel
@@ -67,7 +70,7 @@ final class GlyphAtlas {
         self.data = Array(repeating: UInt8(0), count: self.size * self.size * bytesPerPixel)
     }
 
-    func ensureRegion(width: Int, height: Int) -> AtlasRegion? {
+    public func ensureRegion(width: Int, height: Int) -> AtlasRegion? {
         didReset = false
         if width <= 0 || height <= 0 {
             return nil
@@ -94,7 +97,7 @@ final class GlyphAtlas {
         return reserve(width: width, height: height)
     }
 
-    func write(region: AtlasRegion, pixels: [UInt8], width: Int, height: Int) {
+    public func write(region: AtlasRegion, pixels: [UInt8], width: Int, height: Int) {
         guard width == region.width, height == region.height else {
             return
         }

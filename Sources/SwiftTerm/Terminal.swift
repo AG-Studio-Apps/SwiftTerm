@@ -331,11 +331,16 @@ open class Terminal {
     private var synchronizedOutputBufferIsAlternate: Bool = false
     private var synchronizedOutputTimeoutItem: DispatchWorkItem?
 
-    var displayBuffer: Buffer {
+    /// The buffer a renderer should draw from: the synchronized-output (DEC 2026)
+    /// snapshot while one is active, otherwise the live ``buffer``. Headless
+    /// embedders must render from this, not ``buffer``, or synchronized
+    /// updates tear. (meshterm.7)
+    public var displayBuffer: Buffer {
         synchronizedOutputBuffer ?? buffer
     }
 
-    var isDisplayBufferAlternate: Bool {
+    /// Whether ``displayBuffer`` currently shows the alternate screen. (meshterm.7)
+    public var isDisplayBufferAlternate: Bool {
         synchronizedOutputBuffer != nil ? synchronizedOutputBufferIsAlternate : isCurrentBufferAlternate
     }
     
@@ -366,7 +371,9 @@ open class Terminal {
     // You can ignore most of the defaults set here, the function
     // reset() will do that again
     var sendFocus: Bool = false
-    var cursorHidden : Bool = false
+    /// DECTCEM cursor visibility, readable by headless embedders so renderers
+    /// need not mirror show/hideCursor delegate calls. (meshterm.7)
+    public internal(set) var cursorHidden : Bool = false
     
     /// Controls the origin mode (DECOM), when set, the screen is limited to the top and bottom margins
     var originMode: Bool = false

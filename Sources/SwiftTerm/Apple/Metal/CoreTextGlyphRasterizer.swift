@@ -2,8 +2,12 @@
 import CoreGraphics
 import CoreText
 
-final class CoreTextGlyphRasterizer {
-    func rasterize(font: CTFont, glyph: CGGlyph) -> GlyphBitmap? {
+/// Rasterizes single glyphs (incl. color/emoji) via CoreText into BGRA
+/// bitmaps for ``GlyphAtlas`` upload. (meshterm.7: public for headless embedders)
+public final class CoreTextGlyphRasterizer {
+    public init () {}
+
+    public func rasterize(font: CTFont, glyph: CGGlyph) -> GlyphBitmap? {
         var glyphVar = glyph
         let rect = CTFontGetBoundingRectsForGlyphs(font, .default, &glyphVar, nil, 1)
         if rect.width <= 0 || rect.height <= 0 {
