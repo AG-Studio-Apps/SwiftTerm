@@ -531,7 +531,13 @@ open class Terminal {
     var defaultAnsiColors: [Color]
     // The active set of colors (based on the blueprint)
     var ansiColors: [Color]
-    
+
+    /// meshterm.8 (expose-only): read-only view of the live 256-entry palette —
+    /// the 16 installed ANSI colors (mutable via OSC 4 / themes) plus the fixed
+    /// 6×6×6 cube and grays. Lets a headless/owned renderer match the engine's
+    /// palette instead of a static xterm table. Indices 0..<256.
+    public var paletteColors: [Color] { ansiColors }
+
     // Control codes provides an API to send either 8bit sequences or 7bit sequences for C0 and C1 depending on the terminal state
     var cc: CC
     
