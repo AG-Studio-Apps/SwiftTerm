@@ -389,7 +389,7 @@ open class Terminal {
     
     var insertMode: Bool = false
     
-    var wraparound: Bool = false
+    public private(set) var wraparound: Bool = false
 
     func setMarginMode(_ value: Bool) {
         marginMode = value
@@ -403,7 +403,7 @@ open class Terminal {
         altBuffer.setInsertMode(value)
     }
 
-    func setWraparound(_ value: Bool) {
+    public func setWraparound(_ value: Bool) {
         wraparound = value
         normalBuffer.setWraparound(value)
         altBuffer.setWraparound(value)
