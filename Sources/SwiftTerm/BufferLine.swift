@@ -21,8 +21,11 @@ public final class BufferLine: CustomDebugStringConvertible {
         /// Renders the bottom of a character, using two cells
         case doubledDown
     }
-    var isWrapped: Bool { didSet { bump() } }
-    var renderMode: RenderLineMode = .single { didSet { bump() } }
+    /// Whether this line is a soft-wrap continuation of the previous one.
+    /// Public for headless embedders (selection across wraps). (meshterm.7)
+    public internal(set) var isWrapped: Bool { didSet { bump() } }
+    /// DECDWL/DECDHL render mode, public for custom renderers. (meshterm.7)
+    public internal(set) var renderMode: RenderLineMode = .single { didSet { bump() } }
     private var data: UnsafeMutableBufferPointer<CharData>
     private var dataSize: Int
 

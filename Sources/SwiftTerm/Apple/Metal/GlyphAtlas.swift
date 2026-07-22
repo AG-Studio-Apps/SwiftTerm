@@ -4,22 +4,24 @@ import Foundation
 import Metal
 import os
 
-struct AtlasRegion {
-    let x: Int
-    let y: Int
-    let width: Int
-    let height: Int
+/// A reserved rectangle inside a ``GlyphAtlas`` texture. (meshterm.7: public for headless embedders)
+public struct AtlasRegion {
+    public let x: Int
+    public let y: Int
+    public let width: Int
+    public let height: Int
 }
 
-struct GlyphBitmap {
-    let width: Int
-    let height: Int
-    let bearing: CGPoint
-    let pixels: [UInt8]
-    let isColor: Bool
+/// A rasterized glyph ready for atlas upload. (meshterm.7: public for headless embedders)
+public struct GlyphBitmap {
+    public let width: Int
+    public let height: Int
+    public let bearing: CGPoint
+    public let pixels: [UInt8]
+    public let isColor: Bool
 }
 
-enum GlyphAtlasFormat {
+public enum GlyphAtlasFormat {
     case grayscale
     case bgra
 
@@ -32,7 +34,7 @@ enum GlyphAtlasFormat {
         }
     }
 
-    var bytesPerPixel: Int {
+    public var bytesPerPixel: Int {
         switch self {
         case .grayscale:
             return 1
@@ -41,7 +43,7 @@ enum GlyphAtlasFormat {
         }
     }
 
-    var pixelFormat: MTLPixelFormat {
+    public var pixelFormat: MTLPixelFormat {
         switch self {
         case .grayscale:
             return .r8Unorm
@@ -51,7 +53,8 @@ enum GlyphAtlasFormat {
     }
 }
 
-final class GlyphAtlas {
+/// Grow-then-reset shelf-packed glyph texture atlas. (meshterm.7: public for headless embedders)
+public final class GlyphAtlas {
     private static let glyphPadding = 1
     static let log = Logger(subsystem: "org.tirania.SwiftTerm", category: "MetalAtlas")
 
@@ -59,13 +62,13 @@ final class GlyphAtlas {
     private let format: GlyphAtlasFormat
     private let bytesPerPixel: Int
     private let maxSize: Int
-    private(set) var size: Int
-    private(set) var texture: MTLTexture
+    public private(set) var size: Int
+    public private(set) var texture: MTLTexture
     private var data: [UInt8]
     private var nextX = 0
     private var nextY = 0
     private var rowHeight = 0
-    private(set) var didReset = false
+    public private(set) var didReset = false
     /// While frozen, `ensureRegion` never grows or resets the atlas: a
     /// request that does not fit simply returns nil. The renderer freezes the
     /// atlases on its final rebuild pass so an overflowing working set
@@ -103,7 +106,7 @@ final class GlyphAtlas {
         return min(cap, maxTextureDimension(of: device))
     }
 
-    init?(device: MTLDevice, size: Int = 1024, maxSize: Int = 2048, format: GlyphAtlasFormat = .bgra) {
+    public init?(device: MTLDevice, size: Int = 1024, maxSize: Int = 2048, format: GlyphAtlasFormat = .bgra) {
         self.device = device
         self.format = format
         self.bytesPerPixel = format.bytesPerPixel
@@ -120,7 +123,7 @@ final class GlyphAtlas {
         self.data = Array(repeating: UInt8(0), count: self.size * self.size * bytesPerPixel)
     }
 
-    func ensureRegion(width: Int, height: Int) -> AtlasRegion? {
+    public func ensureRegion(width: Int, height: Int) -> AtlasRegion? {
         didReset = false
         if width <= 0 || height <= 0 {
             return nil
@@ -164,7 +167,7 @@ final class GlyphAtlas {
         }
     }
 
-    func write(region: AtlasRegion, pixels: [UInt8], width: Int, height: Int) {
+    public func write(region: AtlasRegion, pixels: [UInt8], width: Int, height: Int) {
         guard width == region.width, height == region.height else {
             return
         }
