@@ -26,7 +26,8 @@ public final class BufferLine: CustomDebugStringConvertible {
     public internal(set) var isWrapped: Bool { didSet { bump() } }
     /// BiDi state for the paragraph that contains this row.
     public internal(set) var bidiState: BidiPresentationState { didSet { bump() } }
-    var renderMode: RenderLineMode = .single { didSet { bump() } }
+    /// DECDWL/DECDHL render mode, public for custom renderers. (meshterm.7)
+    public internal(set) var renderMode: RenderLineMode = .single { didSet { bump() } }
     /// Shell-authored OSC 133 marks on this line, at most one per kind.
     /// A line can carry both a left prompt and a right prompt mark.
     private(set) var semanticMarks: [SemanticMark] = [] { didSet { bump() } }

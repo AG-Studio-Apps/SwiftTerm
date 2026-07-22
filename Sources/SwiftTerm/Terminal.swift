@@ -389,11 +389,17 @@ open class Terminal {
     public private(set) var synchronizedOutputActive: Bool = false
     private var synchronizedOutputTimeoutItem: DispatchWorkItem?
 
-    var displayBuffer: Buffer {
+    /// The buffer a renderer should draw from: the live ``buffer``. A
+    /// synchronized-output (DEC 2026) block no longer snapshots the buffer — the
+    /// live buffer is mutated normally and the view layer is expected to hold
+    /// presentation while ``synchronizedOutputActive`` is set, or synchronized
+    /// updates tear. (meshterm.7)
+    public var displayBuffer: Buffer {
         buffer
     }
 
-    var isDisplayBufferAlternate: Bool {
+    /// Whether ``displayBuffer`` currently shows the alternate screen. (meshterm.7)
+    public var isDisplayBufferAlternate: Bool {
         isCurrentBufferAlternate
     }
     
@@ -443,7 +449,9 @@ open class Terminal {
     public var bidiBoxMirroring: Bool { currentBidiState.boxMirroring }
 
     private var savedBidiPrivateModes: [Int: Bool] = [:]
-    var cursorHidden : Bool = false
+    /// DECTCEM cursor visibility, readable by headless embedders so renderers
+    /// need not mirror show/hideCursor delegate calls. (meshterm.7)
+    public internal(set) var cursorHidden : Bool = false
     
     /// Controls the origin mode (DECOM), when set, the screen is limited to the top and bottom margins
     var originMode: Bool = false
