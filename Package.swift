@@ -22,17 +22,14 @@ let benchmarkDependencies: [Package.Dependency] = (isGitHubActions || disableBen
     .package(url: "https://github.com/ordo-one/package-benchmark", .upToNextMajor(from: "1.29.11"))
 ]
 
-let buildInfoTargets: [Target] = [
-    .executableTarget(
-        name: "SwiftTermBuildInfoGenerator",
-        path: "Sources/SwiftTermBuildInfoGenerator"
-    ),
-    .plugin(
-        name: "SwiftTermBuildInfoPlugin",
-        capability: .buildTool(),
-        dependencies: ["SwiftTermBuildInfoGenerator"]
-    )
-]
+// meshterm fork: the upstream SwiftTermBuildInfoPlugin (a buildTool plugin whose
+// SwiftTermBuildInfoGenerator is a macOS host tool) is removed. In a non-interactive
+// iOS archive with manual signing, Xcode tries to code-sign that macOS host tool with
+// a "Mac App Distribution" cert our CI keychain does not carry, failing the archive.
+// We host the engine headless and do not need generated git build-info, so the plugin
+// is dropped and SwiftTermBuildInfo is provided as a static source file
+// (Sources/SwiftTerm/SwiftTermBuildInfo.swift). Re-apply this at each resync.
+let buildInfoTargets: [Target] = []
 
 #if os(Windows)
 let products: [Product] = [
@@ -48,10 +45,7 @@ let targets: [Target] = [
         name: "SwiftTerm",
         dependencies: [],
         path: "Sources/SwiftTerm",
-        exclude: platformExcludes + ["Mac/README.md"],
-        plugins: [
-            .plugin(name: "SwiftTermBuildInfoPlugin")
-        ]
+        exclude: platformExcludes + ["Mac/README.md"]
 //        swiftSettings: [
 //            .unsafeFlags(["-enforce-exclusivity=none"])
 //        ]
@@ -108,9 +102,6 @@ let targets: [Target] = [
         exclude: platformExcludes + ["Mac/README.md"],
         resources: [
             .process("Apple/Metal/Shaders.metal")
-        ],
-        plugins: [
-            .plugin(name: "SwiftTermBuildInfoPlugin")
         ]
 //        swiftSettings: [
 //            .unsafeFlags(["-enforce-exclusivity=none"])
