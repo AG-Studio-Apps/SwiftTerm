@@ -6269,6 +6269,36 @@ open class Terminal {
         charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&*+,;=%()"
     )
 
+    /// True when the lower row's first non-whitespace content begins a NEW url, i.e. a
+    /// `<scheme>://` prefix (`ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) "://"`). Anchoring
+    /// on `://` (rather than a hardcoded scheme list) means an independent web URL is still
+    /// caught, while a wrapped URL whose continuation row merely starts with an embedded
+    /// bare-colon sub-scheme (e.g. `tel:`/`news:` inside a query) is NOT mistaken for a new
+    /// link and does not truncate the wrap. No list to drift from the regex.
+    private func lowerRowBeginsURLScheme(row: Int, firstCol: Int, in buffer: Buffer) -> Bool
+    {
+        guard row >= 0, row < buffer.lines.count else {
+            return false
+        }
+        let line = buffer.lines[row]
+        let limit = min(min(cols, line.count), firstCol + 24)
+        guard firstCol >= 0, firstCol < limit else {
+            return false
+        }
+        let head = implicitLineSegmentText(line: line, startCol: firstCol, endCol: limit)
+        var idx = head.startIndex
+        guard idx < head.endIndex, head[idx].isLetter else { return false }
+        while idx < head.endIndex {
+            let c = head[idx]
+            if c.isLetter || c.isNumber || c == "+" || c == "-" || c == "." {
+                idx = head.index(after: idx)
+            } else {
+                break
+            }
+        }
+        return head[idx...].hasPrefix("://")
+    }
+
     private func buildGhosttyImplicitLineMap(at position: Position, in buffer: Buffer) -> GhosttyImplicitLineMap?
     {
         guard position.row >= 0 && position.row < buffer.lines.count else {
@@ -6295,11 +6325,17 @@ open class Terminal {
         while endRow + 1 < buffer.lines.count && buffer.lines[endRow + 1].isWrapped {
             endRow += 1
         }
-        if startRow == targetRow && endRow == targetRow,
-           let (heuristicStart, heuristicEnd) = heuristicImplicitGroup(around: targetRow, in: buffer)
-        {
-            startRow = heuristicStart
-            endRow = heuristicEnd
+        if startRow == targetRow && endRow == targetRow {
+            if let (heuristicStart, heuristicEnd) = heuristicImplicitGroup(around: targetRow, in: buffer) {
+                startRow = heuristicStart
+                endRow = heuristicEnd
+            } else if let (emitterStart, emitterEnd) = emitterHardWrapGroup(around: targetRow, in: buffer) {
+                // A CLI wrapping a long URL at a fixed width narrower than the terminal
+                // (e.g. Claude Code's login prompt): rows are not `isWrapped` and don't
+                // reach the right edge, so the two checks above miss them.
+                startRow = emitterStart
+                endRow = emitterEnd
+            }
         }
 
         var text = ""
@@ -6382,6 +6418,132 @@ open class Terminal {
         }
 
         return (start == row && end == row) ? nil : (start, end)
+    }
+
+    /// Detects an EMITTER hard-wrap: a CLI (e.g. Claude Code's login prompt) wrapping a
+    /// long token at a FIXED column width narrower than the terminal, emitting its own
+    /// newlines. Such rows are not `isWrapped` and do not reach the terminal's right
+    /// edge, so both the autowrap walk and the editor-wrap heuristic miss them. The
+    /// signature is a run of consecutive rows filled to the SAME right-edge column W (the
+    /// wrap column), optionally closed by ONE shorter tail row, where EVERY row's content
+    /// is space-free. Space-free is the load-bearing guard against swallowing adjacent
+    /// prose (even prose wrapped to the same width W): a wrapped URL fragment contains no
+    /// literal space, but prose and aligned/tabular output do. Uniform width narrows the
+    /// candidate set; the scheme requirement below confirms it is actually a URL. Returns
+    /// the group's [start, end] when `target` lies inside one, else nil.
+    ///
+    /// ★ Residuals (inherent to width-based heuristics, accepted deliberately):
+    /// - A URL wrapped into EXACTLY two rows (one full body + one tail) has no pair of
+    ///   equal-width rows to establish W, so it is not detected and resolves per-row. CLI
+    ///   login URLs (the target case) wrap over 3+ rows.
+    /// - A complete URL filling EXACTLY to W, immediately followed by an unrelated,
+    ///   equal-width, SPACE-FREE token (e.g. a bare hash/id, or an independent bare-colon
+    ///   `mailto:`/`tel:` URL), can be over-joined - the space-free guard excludes prose
+    ///   and tables but not another space-free token. Low-probability; the app's http/https
+    ///   filter on `link(at:)` results backstops non-http corruption.
+    /// - Only `scheme://` URLs are detected here; a long bare-colon-scheme URL
+    ///   (`mailto:`/`ssh:`/`tel:`) wrapped over many rows is not (it lacks `://`). Such
+    ///   values are rarely long enough to wrap.
+    /// This detector is intentionally a narrow, additive third path (beside the isWrapped
+    /// walk and the editor-wrap heuristic) rather than a unification of all three - kept
+    /// small to bound the blast radius in this delicate, historically wedge-prone code.
+    private func emitterHardWrapGroup(around target: Int, in buffer: Buffer) -> (start: Int, end: Int)?
+    {
+        guard target >= 0, target < buffer.lines.count else { return nil }
+
+        // Memoize the per-row edge scan: this runs on every link hit-test (incl. the
+        // whole-screen `recentLinks` sweep), and each `width`/`joinable` call would
+        // otherwise re-scan the line for its first/last non-blank cell.
+        var edgeCache: [Int: LinkRowEdgeInfo?] = [:]
+        func edge(_ r: Int) -> LinkRowEdgeInfo? {
+            if let cached = edgeCache[r] { return cached }
+            let v = (r >= 0 && r < buffer.lines.count) ? linkRowEdgeInfo(row: r, in: buffer) : nil
+            edgeCache[r] = v
+            return v
+        }
+        // Content width (last non-blank column) of a row, or nil for an empty row.
+        func width(_ r: Int) -> Int? { edge(r)?.lastCol }
+        // A row's content (firstCol..lastCol) contains no interior whitespace. A wrapped
+        // URL fragment is space-free (URLs cannot contain a literal space); PROSE and
+        // aligned/justified output contain spaces. This is the primary reason the group
+        // cannot swallow a trailing prose line even when that line shares the same width.
+        func spaceFree(_ r: Int, _ info: LinkRowEdgeInfo) -> Bool {
+            let text = implicitLineSegmentText(line: buffer.lines[r], startCol: info.firstCol, endCol: info.lastCol + 1)
+            return !text.contains(where: { $0 == " " || $0 == "\t" })
+        }
+        // A joinable seam: both rows are space-free URL fragments, the seam characters are
+        // URL-continuation characters, and `lower` does not begin a NEW url scheme.
+        func joinable(_ upper: Int, _ lower: Int) -> Bool {
+            guard let u = edge(upper), let l = edge(lower) else { return false }
+            guard spaceFree(upper, u), spaceFree(lower, l) else { return false }
+            guard u.lastChar.unicodeScalars.allSatisfy({ Self.ghosttyContinuationCharacters.contains($0) }),
+                  l.firstChar.unicodeScalars.allSatisfy({ Self.ghosttyContinuationCharacters.contains($0) })
+            else { return false }
+            return !lowerRowBeginsURLScheme(row: lower, firstCol: l.firstCol, in: buffer)
+        }
+
+        // A wrap column must have some substance (rejects trivially short uniform runs).
+        // A low floor is safe because the scheme requirement below is the real guard, and
+        // it must adapt DOWN on a narrow terminal (a phone wrapping a URL at ~20 cols).
+        let minWrapWidth = min(max(2, cols / 2), 12)
+
+        // Establish the wrap column W: a width shared by two consecutive JOINABLE rows,
+        // with `target` a body row of that width OR the tail directly below such a body.
+        var wrapCol: Int? = nil
+        if let wt = width(target), wt >= minWrapWidth {
+            if let wu = width(target - 1), wu == wt, joinable(target - 1, target) {
+                wrapCol = wt                                   // target matches row above
+            } else if let wd = width(target + 1), wd == wt, joinable(target, target + 1) {
+                wrapCol = wt                                   // target matches row below
+            }
+        }
+        if wrapCol == nil, let wt = width(target),
+           let wu = width(target - 1), wu >= minWrapWidth, wu > wt,
+           joinable(target - 1, target),
+           let wuu = width(target - 2), wuu == wu, joinable(target - 2, target - 1) {
+            wrapCol = wu                                       // target is the tail below a uniform body
+        }
+        guard let W = wrapCol else { return nil }
+
+        // Anchor on a body row of width W (target itself, or the body just above a tail).
+        let anchor = (width(target) == W) ? target : target - 1
+        guard width(anchor) == W else { return nil }
+
+        var start = anchor
+        while start > 0, width(start - 1) == W, joinable(start - 1, start) {
+            start -= 1
+        }
+        var end = anchor
+        while end + 1 < buffer.lines.count, width(end + 1) == W, joinable(end, end + 1) {
+            end += 1
+        }
+        // Append at most ONE shorter tail row (the token's final, partial segment). Never
+        // a second row, so a following prose line is never pulled in.
+        if end + 1 < buffer.lines.count, let wt = width(end + 1), wt > 0, wt < W, joinable(end, end + 1) {
+            end += 1
+        }
+
+        guard end > start, target >= start, target <= end else { return nil }
+
+        // Require the group to actually contain a URL scheme (on its first row, where a
+        // URL begins). This is the real guard against grouping uniform-width NON-URL
+        // blocks - base64, hex dumps, justified prose, dotted-filename columns - into a
+        // spurious link, since `joinable` above intentionally does not run the per-seam
+        // link regex (a wrapped URL's seam can fall inside a scheme-less %-encoded span).
+        guard rowContainsURLScheme(start, in: buffer) else { return nil }
+        return (start, end)
+    }
+
+    /// True when the row's text contains a `://` scheme separator - the mark of an actual
+    /// URL. Anchoring on `://` (not a scheme-word list) means prose that merely contains a
+    /// bare-colon word like `file:` or `news:` does NOT satisfy the group's URL guard,
+    /// while any real `scheme://` URL (the emitter-wrap target, e.g. `https://`) does.
+    private func rowContainsURLScheme(_ row: Int, in buffer: Buffer) -> Bool
+    {
+        guard row >= 0, row < buffer.lines.count,
+              let info = linkRowEdgeInfo(row: row, in: buffer) else { return false }
+        let text = implicitLineSegmentText(line: buffer.lines[row], startCol: 0, endCol: info.lastCol + 1)
+        return text.contains("://")
     }
 
     private func canJoinImplicitRows(upper: Int, lower: Int, in buffer: Buffer) -> Bool
